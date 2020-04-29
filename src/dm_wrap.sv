@@ -1,3 +1,5 @@
+import dm::*;
+
 module dm_wrap (
     // Common
     input  logic clk,
@@ -34,9 +36,9 @@ module dm_wrap (
 );
 
     logic debug_req_ready;
-    dm::dmi_resp_t debug_resp;
+    dmi_resp_t debug_resp;
     logic jtag_req_valid;
-    dm::dmi_req_t jtag_dmi_req;
+    dmi_req_t jtag_dmi_req;
     logic jtag_resp_ready;
     logic jtag_resp_valid;
 
@@ -75,7 +77,7 @@ module dm_wrap (
         .dmi_resp_valid_o(jtag_resp_valid),
         .dmi_resp_ready_i(jtag_resp_ready),
         .dmi_resp_o(debug_resp)
-    )
+    );
 
     dmi_jtag #(
         .IdcodeValue(32'h249511C3)

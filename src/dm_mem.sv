@@ -16,6 +16,8 @@
 *
 */
 
+import dm::*;
+
 module dm_mem #(
   parameter int unsigned        NrHarts          =  1,
   parameter int unsigned        BusWidth         = 32,
@@ -35,16 +37,16 @@ module dm_mem #(
   output logic [NrHarts-1:0]               halted_o,    // hart acknowledge halt
   output logic [NrHarts-1:0]               resuming_o,  // hart is resuming
 
-  input  logic [dm::ProgBufSize-1:0][31:0] progbuf_i,    // program buffer to expose
+  input  logic [ProgBufSize-1:0][31:0] progbuf_i,    // program buffer to expose
 
-  input  logic [dm::DataCount-1:0][31:0]   data_i,       // data in
-  output logic [dm::DataCount-1:0][31:0]   data_o,       // data out
+  input  logic [DataCount-1:0][31:0]   data_i,       // data in
+  output logic [DataCount-1:0][31:0]   data_o,       // data out
   output logic                             data_valid_o, // data out is valid
   // abstract command interface
   input  logic                             cmd_valid_i,
-  input  dm::command_t                     cmd_i,
+  input  command_t                     cmd_i,
   output logic                             cmderror_valid_o,
-  output dm::cmderr_e                      cmderror_o,
+  output cmderr_e                      cmderror_o,
   output logic                             cmdbusy_o,
   // data interface
 
@@ -61,10 +63,10 @@ module dm_mem #(
   localparam int unsigned NrHartsAligned = 2**HartSelLen;
   localparam int unsigned MaxAar         = (BusWidth == 64) ? 4 : 3;
 
-  localparam logic [DbgAddressBits-1:0] DataBaseAddr        = (dm::DataAddr);
-  localparam logic [DbgAddressBits-1:0] DataEndAddr         = (dm::DataAddr + 4*dm::DataCount - 1);
-  localparam logic [DbgAddressBits-1:0] ProgBufBaseAddr     = (dm::DataAddr - 4*dm::ProgBufSize);
-  localparam logic [DbgAddressBits-1:0] ProgBufEndAddr      = (dm::DataAddr - 1);
+  localparam logic [DbgAddressBits-1:0] DataBaseAddr        = (DataAddr);
+  localparam logic [DbgAddressBits-1:0] DataEndAddr         = (DataAddr + 4*DataCount - 1);
+  localparam logic [DbgAddressBits-1:0] ProgBufBaseAddr     = (DataAddr - 4*ProgBufSize);
+  localparam logic [DbgAddressBits-1:0] ProgBufEndAddr      = (DataAddr - 1);
   localparam logic [DbgAddressBits-1:0] AbstractCmdBaseAddr = (ProgBufBaseAddr - 4*10);
   localparam logic [DbgAddressBits-1:0] AbstractCmdEndAddr  = (ProgBufBaseAddr - 1);
 
@@ -77,7 +79,7 @@ module dm_mem #(
   localparam logic [DbgAddressBits-1:0] ResumingAddr  = 'h108;
   localparam logic [DbgAddressBits-1:0] ExceptionAddr = 'h10C;
 
-  logic [dm::ProgBufSize/2-1:0][63:0]   progbuf;
+  logic [ProgBufSize/2-1:0][63:0]   progbuf;
   logic [7:0][63:0]   abstract_cmd;
   logic [NrHarts-1:0] halted_d, halted_q;
   logic [NrHarts-1:0] resuming_d, resuming_q;
@@ -114,10 +116,10 @@ module dm_mem #(
   // distinguish whether we need to forward data from the ROM or the FSM
   // latch the address for this
   logic fwd_rom_d, fwd_rom_q;
-  dm::ac_ar_cmd_t ac_ar;
+  ac_ar_cmd_t ac_ar;
 
   // Abstract Command Access Register
-  assign ac_ar       = dm::ac_ar_cmd_t'(cmd_i.control);
+  assign ac_ar       = ac_ar_cmd_t'(cmd_i.control);
   assign debug_req_o = haltreq_i;
   assign halted_o    = halted_q;
   assign resuming_o  = resuming_q;
@@ -131,7 +133,7 @@ module dm_mem #(
   // hart ctrl queue
   always_comb begin : p_hart_ctrl_queue
     cmderror_valid_o = 1'b0;
-    cmderror_o       = dm::CmdErrNone;
+    cmderror_o       = CmdErrNone;
     state_d          = state_q;
     go               = 1'b0;
     resume           = 1'b0;
@@ -146,7 +148,7 @@ module dm_mem #(
         end else if (cmd_valid_i) begin
           // hart must be halted for all requests
           cmderror_valid_o = 1'b1;
-          cmderror_o = dm::CmdErrorHaltResume;
+          cmderror_o = CmdErrorHaltResume;
         end
         // CSRs want to resume, the request is ignored when the hart is
         // requested to halt or it didn't clear the resuming_q bit before
@@ -190,12 +192,12 @@ module dm_mem #(
     // in subsequent writes to abstractcs
     if (unsupported_command && cmd_valid_i) begin
       cmderror_valid_o = 1'b1;
-      cmderror_o = dm::CmdErrNotSupported;
+      cmderror_o = CmdErrNotSupported;
     end
 
     if (exception) begin
       cmderror_valid_o = 1'b1;
-      cmderror_o = dm::CmdErrorException;
+      cmderror_o = CmdErrorException;
     end
   end
 
@@ -270,34 +272,34 @@ module dm_mem #(
           WhereToAddr: begin
             // variable jump to abstract cmd, program_buffer or resume
             if (resumereq_wdata_aligned[wdata_hartsel]) begin
-              rdata_d = {32'b0, dm::jal('0, 21'(dm::ResumeAddress[11:0])-21'(WhereToAddr))};
+              rdata_d = {32'b0, jal('0, 21'(ResumeAddress[11:0])-21'(WhereToAddr))};
             end
 
             // there is a command active so jump there
             if (cmdbusy_o) begin
               // transfer not set is shortcut to the program buffer if postexec is set
               // keep this statement narrow to not catch invalid commands
-              if (cmd_i.cmdtype == dm::AccessRegister &&
+              if (cmd_i.cmdtype == AccessRegister &&
                   !ac_ar.transfer && ac_ar.postexec) begin
-                rdata_d = {32'b0, dm::jal('0, 21'(ProgBufBaseAddr)-21'(WhereToAddr))};
+                rdata_d = {32'b0, jal('0, 21'(ProgBufBaseAddr)-21'(WhereToAddr))};
               // this is a legit abstract cmd -> execute it
               end else begin
-                rdata_d = {32'b0, dm::jal('0, 21'(AbstractCmdBaseAddr)-21'(WhereToAddr))};
+                rdata_d = {32'b0, jal('0, 21'(AbstractCmdBaseAddr)-21'(WhereToAddr))};
               end
             end
           end
 
           [DataBaseAddr:DataEndAddr]: begin
             rdata_d = {
-                      data_i[$clog2(dm::ProgBufSize)'(addr_i[DbgAddressBits-1:3] -
+                      data_i[$clog2(ProgBufSize)'(addr_i[DbgAddressBits-1:3] -
                           DataBaseAddr[DbgAddressBits-1:3] + 1'b1)],
-                      data_i[$clog2(dm::ProgBufSize)'(addr_i[DbgAddressBits-1:3] -
+                      data_i[$clog2(ProgBufSize)'(addr_i[DbgAddressBits-1:3] -
                           DataBaseAddr[DbgAddressBits-1:3])]
                       };
           end
 
           [ProgBufBaseAddr:ProgBufEndAddr]: begin
-            rdata_d = progbuf[$clog2(dm::ProgBufSize)'(addr_i[DbgAddressBits-1:3] -
+            rdata_d = progbuf[$clog2(ProgBufSize)'(addr_i[DbgAddressBits-1:3] -
                           ProgBufBaseAddr[DbgAddressBits-1:3])];
           end
 
@@ -329,17 +331,17 @@ module dm_mem #(
     unsupported_command = 1'b0;
     // default memory
     // if ac_ar.transfer is not set then we can take a shortcut to the program buffer
-    abstract_cmd[0][31:0]  = dm::illegal();
+    abstract_cmd[0][31:0]  = illegal();
     // load debug module base address into a0, this is shared among all commands
-    abstract_cmd[0][63:32] = dm::auipc(5'd10, '0);
-    abstract_cmd[1][31:0]  = dm::srli(5'd10, 5'd10, 6'd12); // clr lowest 12b -> DM base offset
-    abstract_cmd[1][63:32] = dm::slli(5'd10, 5'd10, 6'd12);
-    abstract_cmd[2][31:0]  = dm::nop();
-    abstract_cmd[2][63:32] = dm::nop();
-    abstract_cmd[3][31:0]  = dm::nop();
-    abstract_cmd[3][63:32] = dm::nop();
-    abstract_cmd[4][31:0]  = dm::csrr(dm::CSR_DSCRATCH1, 5'd10);
-    abstract_cmd[4][63:32] = dm::ebreak();
+    abstract_cmd[0][63:32] = auipc(5'd10, '0);
+    abstract_cmd[1][31:0]  = srli(5'd10, 5'd10, 6'd12); // clr lowest 12b -> DM base offset
+    abstract_cmd[1][63:32] = slli(5'd10, 5'd10, 6'd12);
+    abstract_cmd[2][31:0]  = nop();
+    abstract_cmd[2][63:32] = nop();
+    abstract_cmd[3][31:0]  = nop();
+    abstract_cmd[3][63:32] = nop();
+    abstract_cmd[4][31:0]  = csrr(CSR_DSCRATCH1, 5'd10);
+    abstract_cmd[4][63:32] = ebreak();
     abstract_cmd[7:5]      = '0;
 
     // this depends on the command being executed
@@ -347,94 +349,94 @@ module dm_mem #(
       // --------------------
       // Access Register
       // --------------------
-      dm::AccessRegister: begin
+      AccessRegister: begin
         if (32'(ac_ar.aarsize) < MaxAar && ac_ar.transfer && ac_ar.write) begin
           // store a0 in dscratch1
-          abstract_cmd[0][31:0] = dm::csrw(dm::CSR_DSCRATCH1, 5'd10);
+          abstract_cmd[0][31:0] = csrw(CSR_DSCRATCH1, 5'd10);
           // this range is reserved
           if (ac_ar.regno[15:14] != '0) begin
-            abstract_cmd[0][31:0] = dm::ebreak(); // we leave asap
+            abstract_cmd[0][31:0] = ebreak(); // we leave asap
             unsupported_command = 1'b1;
           // A0 access needs to be handled separately, as we use A0 to load
           // the DM address offset need to access DSCRATCH1 in this case
           end else if (ac_ar.regno[12] && (!ac_ar.regno[5]) &&
                       (ac_ar.regno[4:0] == 5'd10)) begin
             // store s0 in dscratch
-            abstract_cmd[2][31:0]  = dm::csrw(dm::CSR_DSCRATCH0, 5'd8);
+            abstract_cmd[2][31:0]  = csrw(CSR_DSCRATCH0, 5'd8);
             // load from data register
-            abstract_cmd[2][63:32] = dm::load(ac_ar.aarsize, 5'd8, 5'd10, dm::DataAddr);
+            abstract_cmd[2][63:32] = load(ac_ar.aarsize, 5'd8, 5'd10, DataAddr);
             // and store it in the corresponding CSR
-            abstract_cmd[3][31:0]  = dm::csrw(dm::CSR_DSCRATCH1, 5'd8);
+            abstract_cmd[3][31:0]  = csrw(CSR_DSCRATCH1, 5'd8);
             // restore s0 again from dscratch
-            abstract_cmd[3][63:32] = dm::csrr(dm::CSR_DSCRATCH0, 5'd8);
+            abstract_cmd[3][63:32] = csrr(CSR_DSCRATCH0, 5'd8);
           // GPR/FPR access
           end else if (ac_ar.regno[12]) begin
             // determine whether we want to access the floating point register or not
             if (ac_ar.regno[5]) begin
               abstract_cmd[2][31:0] =
-                  dm::float_load(ac_ar.aarsize, ac_ar.regno[4:0], 5'd10, dm::DataAddr);
+                  float_load(ac_ar.aarsize, ac_ar.regno[4:0], 5'd10, DataAddr);
             end else begin
               abstract_cmd[2][31:0] =
-                  dm::load(ac_ar.aarsize, ac_ar.regno[4:0], 5'd10, dm::DataAddr);
+                  load(ac_ar.aarsize, ac_ar.regno[4:0], 5'd10, DataAddr);
             end
           // CSR access
           end else begin
             // data register to CSR
             // store s0 in dscratch
-            abstract_cmd[2][31:0]  = dm::csrw(dm::CSR_DSCRATCH0, 5'd8);
+            abstract_cmd[2][31:0]  = csrw(CSR_DSCRATCH0, 5'd8);
             // load from data register
-            abstract_cmd[2][63:32] = dm::load(ac_ar.aarsize, 5'd8, 5'd10, dm::DataAddr);
+            abstract_cmd[2][63:32] = load(ac_ar.aarsize, 5'd8, 5'd10, DataAddr);
             // and store it in the corresponding CSR
-            abstract_cmd[3][31:0]  = dm::csrw(dm::csr_reg_t'(ac_ar.regno[11:0]), 5'd8);
+            abstract_cmd[3][31:0]  = csrw(csr_reg_t'(ac_ar.regno[11:0]), 5'd8);
             // restore s0 again from dscratch
-            abstract_cmd[3][63:32] = dm::csrr(dm::CSR_DSCRATCH0, 5'd8);
+            abstract_cmd[3][63:32] = csrr(CSR_DSCRATCH0, 5'd8);
           end
         end else if (32'(ac_ar.aarsize) < MaxAar && ac_ar.transfer && !ac_ar.write) begin
           // store a0 in dscratch1
-          abstract_cmd[0][31:0]  = dm::csrw(dm::CSR_DSCRATCH1, 5'd10);
+          abstract_cmd[0][31:0]  = csrw(CSR_DSCRATCH1, 5'd10);
           // this range is reserved
           if (ac_ar.regno[15:14] != '0) begin
-              abstract_cmd[0][31:0] = dm::ebreak(); // we leave asap
+              abstract_cmd[0][31:0] = ebreak(); // we leave asap
               unsupported_command = 1'b1;
           // A0 access needs to be handled separately, as we use A0 to load
           // the DM address offset need to access DSCRATCH1 in this case
           end else if (ac_ar.regno[12] && (!ac_ar.regno[5]) &&
                       (ac_ar.regno[4:0] == 5'd10)) begin
             // store s0 in dscratch
-            abstract_cmd[2][31:0]  = dm::csrw(dm::CSR_DSCRATCH0, 5'd8);
+            abstract_cmd[2][31:0]  = csrw(CSR_DSCRATCH0, 5'd8);
             // read value from CSR into s0
-            abstract_cmd[2][63:32] = dm::csrr(dm::CSR_DSCRATCH1, 5'd8);
+            abstract_cmd[2][63:32] = csrr(CSR_DSCRATCH1, 5'd8);
             // and store s0 into data section
-            abstract_cmd[3][31:0]  = dm::store(ac_ar.aarsize, 5'd8, 5'd10, dm::DataAddr);
+            abstract_cmd[3][31:0]  = store(ac_ar.aarsize, 5'd8, 5'd10, DataAddr);
             // restore s0 again from dscratch
-            abstract_cmd[3][63:32] = dm::csrr(dm::CSR_DSCRATCH0, 5'd8);
+            abstract_cmd[3][63:32] = csrr(CSR_DSCRATCH0, 5'd8);
           // GPR/FPR access
           end else if (ac_ar.regno[12]) begin
             // determine whether we want to access the floating point register or not
             if (ac_ar.regno[5]) begin
               abstract_cmd[2][31:0] =
-                  dm::float_store(ac_ar.aarsize, ac_ar.regno[4:0], 5'd10, dm::DataAddr);
+                  float_store(ac_ar.aarsize, ac_ar.regno[4:0], 5'd10, DataAddr);
             end else begin
               abstract_cmd[2][31:0] =
-                  dm::store(ac_ar.aarsize, ac_ar.regno[4:0], 5'd10, dm::DataAddr);
+                  store(ac_ar.aarsize, ac_ar.regno[4:0], 5'd10, DataAddr);
             end
           // CSR access
           end else begin
             // CSR register to data
             // store s0 in dscratch
-            abstract_cmd[2][31:0]  = dm::csrw(dm::CSR_DSCRATCH0, 5'd8);
+            abstract_cmd[2][31:0]  = csrw(CSR_DSCRATCH0, 5'd8);
             // read value from CSR into s0
-            abstract_cmd[2][63:32] = dm::csrr(dm::csr_reg_t'(ac_ar.regno[11:0]), 5'd8);
+            abstract_cmd[2][63:32] = csrr(csr_reg_t'(ac_ar.regno[11:0]), 5'd8);
             // and store s0 into data section
-            abstract_cmd[3][31:0]  = dm::store(ac_ar.aarsize, 5'd8, 5'd10, dm::DataAddr);
+            abstract_cmd[3][31:0]  = store(ac_ar.aarsize, 5'd8, 5'd10, DataAddr);
             // restore s0 again from dscratch
-            abstract_cmd[3][63:32] = dm::csrr(dm::CSR_DSCRATCH0, 5'd8);
+            abstract_cmd[3][63:32] = csrr(CSR_DSCRATCH0, 5'd8);
           end
         end else if (32'(ac_ar.aarsize) >= MaxAar || ac_ar.aarpostincrement == 1'b1) begin
           // this should happend when e.g. ac_ar.aarsize >= MaxAar
           // Openocd will try to do an access with aarsize=64 bits
           // first before falling back to 32 bits.
-          abstract_cmd[0][31:0] = dm::ebreak(); // we leave asap
+          abstract_cmd[0][31:0] = ebreak(); // we leave asap
           unsupported_command = 1'b1;
         end
 
@@ -444,14 +446,14 @@ module dm_mem #(
         // for the debugger to recover
         if (ac_ar.postexec && !unsupported_command) begin
           // issue a nop, we will automatically run into the program buffer
-          abstract_cmd[4][63:32] = dm::nop();
+          abstract_cmd[4][63:32] = nop();
         end
       end
       // not supported at the moment
-      // dm::QuickAccess:;
-      // dm::AccessMemory:;
+      // QuickAccess:;
+      // AccessMemory:;
       default: begin
-        abstract_cmd[0][31:0] = dm::ebreak();
+        abstract_cmd[0][31:0] = ebreak();
         unsupported_command = 1'b1;
       end
     endcase
@@ -468,7 +470,7 @@ module dm_mem #(
 
   // ROM starts at the HaltAddress of the core e.g.: it immediately jumps to
   // the ROM base address
-  assign fwd_rom_d = logic'(addr_i[DbgAddressBits-1:0] >= dm::HaltAddress[DbgAddressBits-1:0]);
+  assign fwd_rom_d = logic'(addr_i[DbgAddressBits-1:0] >= HaltAddress[DbgAddressBits-1:0]);
 
   always_ff @(posedge clk_i or negedge rst_ni) begin : p_regs
     if (!rst_ni) begin

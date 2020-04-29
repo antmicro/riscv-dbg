@@ -17,6 +17,8 @@
 *              SW infrastructure re-use. As of version 0.13
 */
 
+import dm::*;
+
 module dm_top #(
   parameter int unsigned        NrHarts          = 1,
   parameter int unsigned        BusWidth         = 32,
@@ -31,7 +33,7 @@ module dm_top #(
   output logic                  dmactive_o,  // debug module is active
   output logic [NrHarts-1:0]    debug_req_o, // async debug request
   input  logic [NrHarts-1:0]    unavailable_i, // communicate whether the hart is unavailable (e.g.: power down)
-  dm::hartinfo_t [NrHarts-1:0]  hartinfo_i,
+  hartinfo_t [NrHarts-1:0]  hartinfo_i,
 
   input  logic                  slave_req_i,
   input  logic                  slave_we_i,
@@ -53,11 +55,11 @@ module dm_top #(
   input  logic                  dmi_rst_ni,
   input  logic                  dmi_req_valid_i,
   output logic                  dmi_req_ready_o,
-  input  dm::dmi_req_t          dmi_req_i,
+  input  dmi_req_t          dmi_req_i,
 
   output logic                  dmi_resp_valid_o,
   input  logic                  dmi_resp_ready_i,
-  output dm::dmi_resp_t         dmi_resp_o
+  output dmi_resp_t         dmi_resp_o
 );
 
   // Debug CSRs
@@ -68,14 +70,14 @@ module dm_top #(
   logic [NrHarts-1:0]               resumereq;
   logic                             clear_resumeack;
   logic                             cmd_valid;
-  dm::command_t                     cmd;
+  command_t                     cmd;
 
   logic                             cmderror_valid;
-  dm::cmderr_e                      cmderror;
+  cmderr_e                      cmderror;
   logic                             cmdbusy;
-  logic [dm::ProgBufSize-1:0][31:0] progbuf;
-  logic [dm::DataCount-1:0][31:0]   data_csrs_mem;
-  logic [dm::DataCount-1:0][31:0]   data_mem_csrs;
+  logic [ProgBufSize-1:0][31:0] progbuf;
+  logic [DataCount-1:0][31:0]   data_csrs_mem;
+  logic [DataCount-1:0][31:0]   data_mem_csrs;
   logic                             data_valid;
   logic [19:0]                      hartsel;
   // System Bus Access Module

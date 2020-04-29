@@ -16,6 +16,8 @@
 *
 */
 
+import dm::*;
+
 module dmi_jtag #(
   parameter logic [31:0] IdcodeValue = 32'h00000001
 ) (
@@ -24,11 +26,11 @@ module dmi_jtag #(
   input  logic         testmode_i,
 
   output logic         dmi_rst_no, // hard reset
-  output dm::dmi_req_t dmi_req_o,
+  output dmi_req_t dmi_req_o,
   output logic         dmi_req_valid_o,
   input  logic         dmi_req_ready_i,
 
-  input dm::dmi_resp_t dmi_resp_i,
+  input dmi_resp_t dmi_resp_i,
   output logic         dmi_resp_ready_o,
   input  logic         dmi_resp_valid_i,
 
@@ -51,11 +53,11 @@ module dmi_jtag #(
   logic        dmi_tdi;
   logic        dmi_tdo;
 
-  dm::dmi_req_t  dmi_req;
+  dmi_req_t  dmi_req;
   logic          dmi_req_ready;
   logic          dmi_req_valid;
 
-  dm::dmi_resp_t dmi_resp;
+  dmi_resp_t dmi_resp;
   logic          dmi_resp_valid;
   logic          dmi_resp_ready;
 
@@ -81,7 +83,7 @@ module dmi_jtag #(
   assign dmi          = dmi_t'(dr_q);
   assign dmi_req.addr = address_q;
   assign dmi_req.data = data_q;
-  assign dmi_req.op   = (state_q == Write) ? dm::DTM_WRITE : dm::DTM_READ;
+  assign dmi_req.op   = (state_q == Write) ? DTM_WRITE : DTM_READ;
   // we'will always be ready to accept the data we requested
   assign dmi_resp_ready = 1'b1;
 
@@ -105,9 +107,9 @@ module dmi_jtag #(
           // save address and value
           address_d = dmi.address;
           data_d = dmi.data;
-          if (dm::dtm_op_e'(dmi.op) == dm::DTM_READ) begin
+          if (dtm_op_e'(dmi.op) == DTM_READ) begin
             state_d = Read;
-          end else if (dm::dtm_op_e'(dmi.op) == dm::DTM_WRITE) begin
+          end else if (dtm_op_e'(dmi.op) == DTM_WRITE) begin
             state_d = Write;
           end
           // else this is a nop and we can stay here
